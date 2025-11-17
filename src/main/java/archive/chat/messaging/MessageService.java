@@ -44,6 +44,14 @@ public class MessageService implements Listener {
             // Local delivery
             deliverMessage(sender, localRecipient, message);
         } else if (redis != null && redis.isConnected()) {
+            // Check if player is online on any server before sending
+            if (!redis.isPlayerOnlineAnywhere(recipientName)) {
+                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfig().getString("messages.player-not-found", "<red>Player not found")
+                ));
+                return;
+            }
+
             // Cross-server delivery via Redis
             redis.sendCrossServerMessage(new PrivateMessage(
                 sender.getUniqueId(),

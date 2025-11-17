@@ -9,7 +9,12 @@ import archive.chat.redis.RedisManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * ArchiveChat - Cross-server private messaging plugin for thearchive.world
@@ -22,6 +27,10 @@ public final class ArchiveChat extends JavaPlugin {
     private ReplyCommand replyCommand;
     private LastCommand lastCommand;
     private String serverName;
+    private BukkitTask heartbeatTask;
+
+    private static final long HEARTBEAT_TTL_SECONDS = 60;
+    private static final long HEARTBEAT_INTERVAL_TICKS = 30 * 20; // 30 seconds
 
     @Override
     public void onEnable() {
@@ -38,12 +47,28 @@ public final class ArchiveChat extends JavaPlugin {
         // Initialize Redis if enabled
         if (enabled) {
             String redisUri = getConfig().getString("redis.uri", "redis://localhost:6379");
-            redisManager = new RedisManager(this, redisUri);
+            redisManager = new RedisManager(this, redisUri, serverName);
             if (redisManager.connect()) {
                 // Register chat listener for cross-server chat sync
                 var chatListener = new ChatListener(redisManager, serverName);
                 Bukkit.getPluginManager().registerEvents(chatListener, this);
                 getLogger().info("Chat sync enabled");
+
+                // Register player connection listener for online player registry
+                Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(), this);
+
+                // Register all currently online players
+                for (var player : Bukkit.getOnlinePlayers()) {
+                    redisManager.registerPlayer(player.getName());
+                }
+
+                // Start heartbeat task to refresh TTL (crash recovery)
+                redisManager.refreshHeartbeat(HEARTBEAT_TTL_SECONDS);
+                heartbeatTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this,
+                    () -> redisManager.refreshHeartbeat(HEARTBEAT_TTL_SECONDS),
+                    HEARTBEAT_INTERVAL_TICKS,
+                    HEARTBEAT_INTERVAL_TICKS
+                );
             }
         } else {
             getLogger().info("Cross-server features disabled");
@@ -72,7 +97,11 @@ public final class ArchiveChat extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (heartbeatTask != null) {
+            heartbeatTask.cancel();
+        }
         if (redisManager != null) {
+            redisManager.cleanupServerPlayers();
             redisManager.disconnect();
         }
     }
@@ -87,12 +116,8 @@ public final class ArchiveChat extends JavaPlugin {
             return;
         }
 
-        // Look up the prefix for the sender's server
-        String prefix = getConfig().getString("server-prefixes." + msg.senderServer(), "");
-        if (prefix.isEmpty()) {
-            // No prefix configured for this server, use default format
-            prefix = "<gray>" + msg.senderServer() + " ";
-        }
+        // Use the sender's server name directly (includes their chosen formatting)
+        String prefix = msg.senderServer() + " ";
 
         // Escape user input to prevent MiniMessage injection
         var mm = MiniMessage.miniMessage();
@@ -105,6 +130,25 @@ public final class ArchiveChat extends JavaPlugin {
 
         // Broadcast to all online players
         Bukkit.broadcast(component);
+    }
+
+    /**
+     * Listener for player connections to maintain Redis online player registry
+     */
+    private class PlayerConnectionListener implements Listener {
+        @EventHandler
+        public void onPlayerJoin(PlayerJoinEvent event) {
+            if (redisManager != null && redisManager.isConnected()) {
+                redisManager.registerPlayer(event.getPlayer().getName());
+            }
+        }
+
+        @EventHandler
+        public void onPlayerQuit(PlayerQuitEvent event) {
+            if (redisManager != null && redisManager.isConnected()) {
+                redisManager.unregisterPlayer(event.getPlayer().getName());
+            }
+        }
     }
 }
 

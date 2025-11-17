@@ -4,6 +4,7 @@ import archive.chat.ArchiveChat;
 import archive.chat.messaging.ChatMessage;
 import archive.chat.messaging.PrivateMessage;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.ScanArgs;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
@@ -13,6 +14,7 @@ import org.bukkit.Bukkit;
 public class RedisManager {
     private final ArchiveChat plugin;
     private final String uri;
+    private final String serverName;
     private RedisClient client;
     private StatefulRedisPubSubConnection<String, String> pubSubConnection;
     private StatefulRedisConnection<String, String> connection;
@@ -20,10 +22,12 @@ public class RedisManager {
 
     private static final String PRIVATE_CHANNEL = "archivechat:private";
     private static final String CHAT_CHANNEL = "archivechat:chat";
+    private static final String ONLINE_PREFIX = "archivechat:online:";
 
-    public RedisManager(ArchiveChat plugin, String uri) {
+    public RedisManager(ArchiveChat plugin, String uri, String serverName) {
         this.plugin = plugin;
         this.uri = uri;
+        this.serverName = serverName;
     }
 
     public boolean connect() {
@@ -122,5 +126,72 @@ public class RedisManager {
             }
         });
     }
+
+    /**
+     * Register a player as online on this server
+     */
+    public void registerPlayer(String playerName) {
+        if (!connected) return;
+        connection.async().sadd(ONLINE_PREFIX + serverName, playerName.toLowerCase());
+    }
+
+    /**
+     * Unregister a player from this server
+     */
+    public void unregisterPlayer(String playerName) {
+        if (!connected) return;
+        connection.async().srem(ONLINE_PREFIX + serverName, playerName.toLowerCase());
+    }
+
+    /**
+     * Check if a player is online on any server.
+     * Uses SCAN to discover all server sets (safe, non-blocking cursor-based iteration).
+     */
+    public boolean isPlayerOnlineAnywhere(String playerName) {
+        if (!connected) return false;
+        try {
+            String lowerName = playerName.toLowerCase();
+            var scanArgs = ScanArgs.Builder.matches(ONLINE_PREFIX + "*").limit(100);
+            var cursor = connection.sync().scan(scanArgs);
+
+            while (true) {
+                for (String key : cursor.getKeys()) {
+                    if (connection.sync().sismember(key, lowerName)) {
+                        return true;
+                    }
+                }
+                if (cursor.isFinished()) {
+                    break;
+                }
+                cursor = connection.sync().scan(cursor, scanArgs);
+            }
+            return false;
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to check player online status: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Refresh TTL on this server's player set (heartbeat for crash recovery).
+     * If server crashes, the set will auto-expire after TTL seconds.
+     */
+    public void refreshHeartbeat(long ttlSeconds) {
+        if (!connected) return;
+        connection.async().expire(ONLINE_PREFIX + serverName, ttlSeconds);
+    }
+
+    /**
+     * Remove all players registered for this server (cleanup on shutdown)
+     */
+    public void cleanupServerPlayers() {
+        if (!connected) return;
+        try {
+            connection.sync().del(ONLINE_PREFIX + serverName);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to cleanup server players: " + e.getMessage());
+        }
+    }
 }
+
 
