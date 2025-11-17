@@ -1,0 +1,18 @@
+name: ArchiveChat
+version: ${version}
+main: archive.chat.ArchiveChat
+api-version: ${api_version}
+description: Cross-server private messaging plugin for thearchive.world
+author: thearchive.world
+folia-supported: false
+
+permissions:
+  archivechat.msg:
+    description: Send private messages
+    default: true
+  archivechat.reply:
+    description: Reply to messages
+    default: true
+  archivechat.last:
+    description: Send a message to the last person you messaged
+    default: true

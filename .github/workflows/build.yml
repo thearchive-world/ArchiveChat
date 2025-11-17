@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+  workflow_dispatch:
+
+# Cancel in-progress runs when a new workflow on the same ref is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Adaptive permissions: write access for main (dependency graph), read-only for PRs
+    permissions:
+      contents: ${{ github.ref == 'refs/heads/main' && 'write' || 'read' }}
+      actions: read
+      pull-requests: ${{ github.event_name == 'pull_request' && 'read' || 'none' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: 'temurin'
+
+      - name: Dependency Review (PRs only)
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          # Read-only cache for PRs, write on main branch
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          # Generate dependency graph for Dependabot security alerts
+          dependency-graph: generate-and-submit
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArchiveChat-${{ github.run_number }}
+          path: build/libs/*.jar
+          retention-days: 30

@@ -1,0 +1,32 @@
+# Redis connection
+redis:
+  uri: "redis://localhost:6379"
+
+# Server identifier (unique per server)
+server-name: "server1"
+
+# Enable cross-server features (private messaging and chat sync)
+enabled: true
+
+# Server prefix mapping for cross-server chat
+# Maps server names to their display prefix (MiniMessage format)
+# Example for "The Archive" server:
+#   "Archive Survival": "<green>Survival "
+# Example for "Archive Survival" server:
+#   "The Archive": "<gold>Archive "
+server-prefixes:
+  # "OtherServerName": "<color>DisplayName "
+
+# Message formats (MiniMessage)
+formats:
+  sent: "<light_purple>to <recipient>: <light_purple><message>"
+  received: "<light_purple><sender> whispers: <light_purple><message>"
+
+# Messages
+messages:
+  player-not-found: "<red>Player not found"
+  player-offline: "<red>Player is no longer online"
+  no-reply-target: "<red>No one to reply to"
+  no-last-target: "<red>You haven't messaged anyone yet"
+  cannot-message-self: "<red>You cannot message yourself"
+  empty-message: "<red>Message cannot be empty"

@@ -1,0 +1,87 @@
+# ===========================
+# IDE - IntelliJ IDEA
+# ===========================
+.idea/
+.idea_modules/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ===========================
+# IDE - Eclipse
+# ===========================
+.project
+.classpath
+.settings/
+
+# ===========================
+# IDE - VS Code
+# ===========================
+.vscode/
+
+# ===========================
+# Build Tools - Gradle
+# ===========================
+.gradle
+.gradletasknamecache
+**/build/
+bin/
+build/
+gradle-app.setting
+
+# Gradle wrapper (keep these)
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+!**/src/**/build/
+
+# ===========================
+# Java
+# ===========================
+*.class
+*.log
+hs_err_pid*
+replay_pid*
+
+# ===========================
+# Security & Secrets
+# ===========================
+*.keystore
+.env
+.env.*
+.env.local
+local.properties
+secrets.yml
+credentials.yml
+
+# ===========================
+# Backup Files
+# ===========================
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+
+# ===========================
+# Operating Systems - Linux
+# ===========================
+*~
+.directory
+
+# ===========================
+# Operating Systems - macOS
+# ===========================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ===========================
+# Operating Systems - Windows
+# ===========================
+[Dd]esktop.ini
+$RECYCLE.BIN/
+Thumbs.db
+ehthumbs.db
+
