@@ -18,7 +18,7 @@ public class RedisManager {
     private RedisClient client;
     private StatefulRedisPubSubConnection<String, String> pubSubConnection;
     private StatefulRedisConnection<String, String> connection;
-    private boolean connected = false;
+    private volatile boolean connected = false;
 
     private static final String PRIVATE_CHANNEL = "archivechat:private";
     private static final String CHAT_CHANNEL = "archivechat:chat";

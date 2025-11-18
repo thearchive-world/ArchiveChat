@@ -10,12 +10,16 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/") {
         name = "papermc-repo"
     }
+    maven("https://jitpack.io") {
+        name = "jitpack"
+    }
     mavenCentral()
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:${property("paper_api")}")
     compileOnly("com.google.code.gson:gson:2.13.2")  // Paper provides Gson
+    compileOnly("com.github.LeonMangler:PremiumVanishAPI:2.9.18-2")  // PremiumVanish API (provided by PremiumVanish plugin)
     implementation("io.lettuce:lettuce-core:7.0.0.RELEASE")
 }
 

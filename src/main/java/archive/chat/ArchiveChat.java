@@ -5,14 +5,17 @@ import archive.chat.commands.MsgCommand;
 import archive.chat.commands.ReplyCommand;
 import archive.chat.messaging.ChatMessage;
 import archive.chat.messaging.MessageService;
+import archive.chat.messaging.VanishManager;
 import archive.chat.redis.RedisManager;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -57,9 +60,18 @@ public final class ArchiveChat extends JavaPlugin {
                 // Register player connection listener for online player registry
                 Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(), this);
 
-                // Register all currently online players
+                // Register PremiumVanish listener if available
+                if (Bukkit.getPluginManager().getPlugin("PremiumVanish") != null) {
+                    var vanishManager = new VanishManager(redisManager);
+                    Bukkit.getPluginManager().registerEvents(vanishManager, this);
+                    getLogger().info("PremiumVanish integration enabled - vanish status changes will sync instantly");
+                }
+
+                // Register all currently online players (excluding vanished players)
                 for (var player : Bukkit.getOnlinePlayers()) {
-                    redisManager.registerPlayer(player.getName());
+                    if (!VanishManager.isVanished(player)) {
+                        redisManager.registerPlayer(player.getName());
+                    }
                 }
 
                 // Start heartbeat task to refresh TTL (crash recovery)
@@ -110,6 +122,22 @@ public final class ArchiveChat extends JavaPlugin {
         return messageService;
     }
 
+    /**
+     * Manually sync a player's vanish status with the Redis online player registry.
+     * This can be called by other plugins when a player's vanish status changes.
+     *
+     * @param player The player whose vanish status should be synced
+     */
+    public void syncPlayerVanishStatus(org.bukkit.entity.Player player) {
+        if (redisManager != null && redisManager.isConnected()) {
+            if (VanishManager.isVanished(player)) {
+                redisManager.unregisterPlayer(player.getName());
+            } else {
+                redisManager.registerPlayer(player.getName());
+            }
+        }
+    }
+
     public void handleIncomingChat(ChatMessage msg) {
         // Ignore messages from our own server
         if (msg.senderServer().equals(serverName)) {
@@ -139,7 +167,11 @@ public final class ArchiveChat extends JavaPlugin {
         @EventHandler
         public void onPlayerJoin(PlayerJoinEvent event) {
             if (redisManager != null && redisManager.isConnected()) {
-                redisManager.registerPlayer(event.getPlayer().getName());
+                // Only register non-vanished players
+                // Vanished players will be registered when they unvanish
+                if (!VanishManager.isVanished(event.getPlayer())) {
+                    redisManager.registerPlayer(event.getPlayer().getName());
+                }
             }
         }
 
@@ -147,6 +179,32 @@ public final class ArchiveChat extends JavaPlugin {
         public void onPlayerQuit(PlayerQuitEvent event) {
             if (redisManager != null && redisManager.isConnected()) {
                 redisManager.unregisterPlayer(event.getPlayer().getName());
+            }
+        }
+
+        /**
+         * Listen for vanish plugins loading after ArchiveChat.
+         * Schedule a task to check all players' vanish status after other plugins are loaded.
+         */
+        @EventHandler(priority = EventPriority.MONITOR)
+        public void onPluginEnable(PluginEnableEvent event) {
+            String pluginName = event.getPlugin().getName().toLowerCase();
+            // Detect common vanish plugins
+            if (pluginName.contains("vanish") || pluginName.contains("essentials")) {
+                // Schedule a delayed task to refresh player registry after vanish plugin is fully loaded
+                Bukkit.getScheduler().runTaskLater(ArchiveChat.this, () -> {
+                    if (redisManager != null && redisManager.isConnected()) {
+                        getLogger().info("Refreshing online player registry after " + event.getPlugin().getName() + " loaded");
+                        // Re-sync all online players
+                        for (var player : Bukkit.getOnlinePlayers()) {
+                            if (VanishManager.isVanished(player)) {
+                                redisManager.unregisterPlayer(player.getName());
+                            } else {
+                                redisManager.registerPlayer(player.getName());
+                            }
+                        }
+                    }
+                }, 20L); // Wait 1 second for plugin to fully initialize
             }
         }
     }

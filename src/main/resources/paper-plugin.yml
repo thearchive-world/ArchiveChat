@@ -6,6 +6,13 @@ description: Cross-server private messaging plugin for thearchive.world
 author: thearchive.world
 folia-supported: false
 
+dependencies:
+  server:
+    PremiumVanish:
+      load: BEFORE
+      required: false
+      join-classpath: true
+
 permissions:
   archivechat.msg:
     description: Send private messages

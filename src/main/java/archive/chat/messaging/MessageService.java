@@ -31,9 +31,9 @@ public class MessageService implements Listener {
         this.redis = redis;
         this.serverName = plugin.getConfig().getString("server-name", "server1");
         this.sentFormat = plugin.getConfig().getString("formats.sent",
-            "<gray>[<white>You <gray>-> <white><recipient><gray>] <message>");
+            "<light_purple>to <recipient>: <light_purple><message>");
         this.receivedFormat = plugin.getConfig().getString("formats.received",
-            "<gray>[<white><sender> <gray>-> <white>You<gray>] <message>");
+            "<light_purple><sender> whispers: <light_purple><message>");
     }
 
     public void sendPrivateMessage(Player sender, String recipientName, String message) {
@@ -41,6 +41,13 @@ public class MessageService implements Listener {
         Player localRecipient = Bukkit.getPlayerExact(recipientName);
 
         if (localRecipient != null) {
+            // Check if sender can see the recipient (respects vanish)
+            if (!VanishManager.canSee(sender, localRecipient)) {
+                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    plugin.getConfig().getString("messages.player-not-found", "<red>Player not found")
+                ));
+                return;
+            }
             // Local delivery
             deliverMessage(sender, localRecipient, message);
         } else if (redis != null && redis.isConnected()) {
@@ -107,6 +114,10 @@ public class MessageService implements Listener {
     public void handleIncomingMessage(PrivateMessage msg) {
         Player recipient = Bukkit.getPlayerExact(msg.recipientName());
         if (recipient == null) return;
+
+        // Note: We don't check vanish status here because the sender is on a different server
+        // and we can't use Player.canSee() across servers. The sending server should have
+        // already filtered out vanished players from the online registry.
 
         // Update reply target (cross-server - store sender info with name for cross-server reply)
         replyTargets.put(recipient.getUniqueId(), new TargetInfo(msg.senderUUID(), msg.senderName()));

@@ -2,6 +2,7 @@ package archive.chat.commands;
 
 import archive.chat.ArchiveChat;
 import archive.chat.messaging.MessageService;
+import archive.chat.messaging.VanishManager;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -36,12 +37,17 @@ public class MsgCommand {
                     .requires(source -> source.getSender().hasPermission("archivechat.msg"))
                     .then(Commands.argument("player", StringArgumentType.word())
                         .suggests((context, builder) -> {
-                            // Suggest online player names (excluding sender)
+                            // Suggest online player names (excluding sender and vanished players)
                             var sender = context.getSource().getSender();
                             Bukkit.getOnlinePlayers().forEach(player -> {
                                 // Don't suggest sender's own name
                                 if (sender instanceof Player senderPlayer &&
                                     player.getUniqueId().equals(senderPlayer.getUniqueId())) {
+                                    return; // Skip
+                                }
+                                // Don't suggest vanished players (unless sender can see them)
+                                if (sender instanceof Player senderPlayer &&
+                                    !VanishManager.canSee(senderPlayer, player)) {
                                     return; // Skip
                                 }
                                 builder.suggest(player.getName());
