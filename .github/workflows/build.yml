@@ -18,11 +18,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Adaptive permissions: write access for main (dependency graph), read-only for PRs
     permissions:
-      contents: ${{ github.ref == 'refs/heads/main' && 'write' || 'read' }}
+      contents: write  # Required for dependency graph submission
       actions: read
-      pull-requests: ${{ github.event_name == 'pull_request' && 'read' || 'none' }}
+      pull-requests: read  # Required for dependency review on PRs
 
     steps:
       - name: Checkout code
@@ -50,7 +49,7 @@ jobs:
         run: ./gradlew build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ArchiveChat-${{ github.run_number }}
           path: build/libs/*.jar
