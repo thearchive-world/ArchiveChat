@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:${property("paper_api")}")
-    compileOnly("com.google.code.gson:gson:2.11.0")  // Paper provides Gson
+    compileOnly("com.google.code.gson:gson:2.13.2")  // Paper provides Gson
     implementation("io.lettuce:lettuce-core:6.5.3.RELEASE")
 }
 
